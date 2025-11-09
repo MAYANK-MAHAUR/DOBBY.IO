@@ -14,12 +14,29 @@ const DobbyTokenEater = () => {
   const [isInvincible, setIsInvincible] = useState(false);
   const [comboMultiplier, setComboMultiplier] = useState(1);
   const [lastEatTime, setLastEatTime] = useState(0);
+  const [particles, setParticles] = useState([]);
+  const [floatingTexts, setFloatingTexts] = useState([]);
+  const [timeAlive, setTimeAlive] = useState(0);
   const mousePos = useRef({ x: 400, y: 300 });
   const animationRef = useRef(null);
+  const gameStartTime = useRef(0);
+  const dobbyImage = useRef(null);
 
   const CANVAS_WIDTH = 1000;
   const CANVAS_HEIGHT = 600;
   const BASE_SPEED = 3;
+
+  // Load Dobby image
+  useEffect(() => {
+    const img = new Image();
+    img.src = 'https://i.postimg.cc/qqrhgmg2/image.png';
+    img.onload = () => {
+      dobbyImage.current = img;
+    };
+    img.onerror = () => {
+      console.error('Failed to load Dobby image');
+    };
+  }, []);
 
   const dobbyQuips = [
     "NGMI? Not me!",
@@ -60,6 +77,10 @@ const DobbyTokenEater = () => {
     setScore(0);
     setComboMultiplier(1);
     setPowerUps([]);
+    setParticles([]);
+    setFloatingTexts([]);
+    setTimeAlive(0);
+    gameStartTime.current = Date.now();
   }, []);
 
   const spawnToken = useCallback(() => {
@@ -95,6 +116,31 @@ const DobbyTokenEater = () => {
     }
     setLastEatTime(now);
   }, [lastEatTime]);
+
+  const createParticles = useCallback((x, y, color, count = 8) => {
+    const newParticles = Array.from({ length: count }, () => ({
+      id: Date.now() + Math.random(),
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 8,
+      vy: (Math.random() - 0.5) * 8,
+      color,
+      life: 1,
+      size: 3 + Math.random() * 3
+    }));
+    setParticles(prev => [...prev, ...newParticles]);
+  }, []);
+
+  const addFloatingText = useCallback((x, y, text, color = '#fbbf24') => {
+    setFloatingTexts(prev => [...prev, {
+      id: Date.now() + Math.random(),
+      x,
+      y,
+      text,
+      color,
+      life: 1
+    }]);
+  }, []);
 
   const gameLoop = useCallback(() => {
     if (gameState !== 'playing') return;
@@ -138,6 +184,8 @@ const DobbyTokenEater = () => {
             setSize(s => Math.min(s + token.value * 2, 150));
             updateCombo();
             spawnToken();
+            createParticles(token.x, token.y, ['#fbbf24', '#f59e0b', '#d97706'][token.value - 1]);
+            addFloatingText(token.x, token.y, `+${Math.floor(points)}`);
             return { ...token, collected: true };
           }
         }
@@ -156,6 +204,8 @@ const DobbyTokenEater = () => {
         if (distance < size / 2 + 15) {
           setIsInvincible(true);
           setTimeout(() => setIsInvincible(false), 5000);
+          createParticles(powerUp.x, powerUp.y, '#10b981', 15);
+          addFloatingText(powerUp.x, powerUp.y, 'INVINCIBLE!', '#10b981');
           return false;
         }
         return true;
@@ -207,6 +257,8 @@ const DobbyTokenEater = () => {
           // Player eats enemy
           setScore(s => s + 500);
           setSize(s => Math.min(s + 10, 150));
+          createParticles(newX, newY, enemy.color, 12);
+          addFloatingText(newX, newY, '+500', '#ef4444');
           return { ...enemy, x: Math.random() * CANVAS_WIDTH, y: Math.random() * CANVAS_HEIGHT, size: 40 + Math.random() * 30 };
         } else {
           // Game over
@@ -223,7 +275,28 @@ const DobbyTokenEater = () => {
       spawnPowerUp();
     }
 
-  }, [gameState, player, size, tokens, enemies, isInvincible, comboMultiplier, updateCombo, spawnToken, spawnPowerUp, score, highScore]);
+    // Update particles
+    setParticles(prev => prev.map(p => ({
+      ...p,
+      x: p.x + p.vx,
+      y: p.y + p.vy,
+      vy: p.vy + 0.2,
+      life: p.life - 0.02
+    })).filter(p => p.life > 0));
+
+    // Update floating texts
+    setFloatingTexts(prev => prev.map(t => ({
+      ...t,
+      y: t.y - 2,
+      life: t.life - 0.015
+    })).filter(t => t.life > 0));
+
+    // Update time alive
+    if (gameStartTime.current) {
+      setTimeAlive(Math.floor((Date.now() - gameStartTime.current) / 1000));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState, player, size, isInvincible, comboMultiplier, updateCombo, spawnToken, spawnPowerUp, score, highScore, createParticles, addFloatingText]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -312,12 +385,28 @@ const DobbyTokenEater = () => {
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // Dobby face
-    ctx.fillStyle = '#ffffff';
-    ctx.font = `bold ${size / 2}px Arial`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('🤖', player.x, player.y);
+    // Dobby image or fallback emoji
+    if (dobbyImage.current) {
+      // Draw the actual Dobby image
+      const imgSize = size * 1.2; // Make image slightly bigger than the circle
+      ctx.save();
+      ctx.translate(player.x, player.y);
+      ctx.drawImage(
+        dobbyImage.current,
+        -imgSize / 2,
+        -imgSize / 2,
+        imgSize,
+        imgSize
+      );
+      ctx.restore();
+    } else {
+      // Fallback to emoji if image fails to load
+      ctx.fillStyle = '#ffffff';
+      ctx.font = `bold ${size / 2}px Arial`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🤖', player.x, player.y);
+    }
 
     // Combo multiplier text
     if (comboMultiplier > 1) {
@@ -327,7 +416,30 @@ const DobbyTokenEater = () => {
       ctx.fillText(`${comboMultiplier.toFixed(1)}x COMBO!`, player.x, player.y - size / 2 - 20);
     }
 
-  }, [player, size, tokens, enemies, powerUps, isInvincible, comboMultiplier]);
+    // Draw particles
+    particles.forEach(particle => {
+      ctx.globalAlpha = particle.life;
+      ctx.fillStyle = particle.color;
+      ctx.beginPath();
+      ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // Draw floating texts
+    floatingTexts.forEach(text => {
+      ctx.globalAlpha = text.life;
+      ctx.fillStyle = text.color;
+      ctx.font = 'bold 20px monospace';
+      ctx.textAlign = 'center';
+      ctx.shadowBlur = 5;
+      ctx.shadowColor = text.color;
+      ctx.fillText(text.text, text.x, text.y);
+      ctx.shadowBlur = 0;
+    });
+    ctx.globalAlpha = 1;
+
+  }, [player, size, tokens, enemies, powerUps, isInvincible, comboMultiplier, particles, floatingTexts]);
 
   useEffect(() => {
     if (gameState === 'playing') {
@@ -372,7 +484,13 @@ const DobbyTokenEater = () => {
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 via-indigo-900 to-black">
         <div className="text-center space-y-8 p-8 max-w-2xl">
           <div className="mb-8">
-            <div className="text-8xl mb-4 animate-bounce">🤖</div>
+            <div className="text-8xl mb-4 animate-bounce">
+              <img 
+                src="https://i.postimg.cc/qqrhgmg2/image.png" 
+                alt="Dobby" 
+                className="w-32 h-32 mx-auto"
+              />
+            </div>
             <h1 className="text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 mb-4 animate-pulse">
               DOBBY.IO
             </h1>
@@ -428,12 +546,24 @@ const DobbyTokenEater = () => {
   }
 
   if (gameState === 'gameover') {
+    const survivalTime = timeAlive;
+    const minutes = Math.floor(survivalTime / 60);
+    const seconds = survivalTime % 60;
+    
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-red-900 via-purple-900 to-black">
         <div className="text-center space-y-8 p-12 bg-black/70 backdrop-blur-xl rounded-3xl border-2 border-red-500 max-w-lg">
-          <div className="text-8xl mb-4">💀</div>
+          <div className="text-8xl mb-4 animate-bounce">💀</div>
           <h2 className="text-6xl font-black text-red-400 mb-4 animate-pulse">REKT!</h2>
-          <p className="text-white text-3xl font-bold">Score: {score}</p>
+          
+          <div className="space-y-3">
+            <p className="text-white text-3xl font-bold">Score: {score}</p>
+            <p className="text-cyan-400 text-xl">
+              Survived: {minutes > 0 ? `${minutes}m ` : ''}{seconds}s
+            </p>
+            <p className="text-purple-400 text-lg">Final Size: {size.toFixed(0)}</p>
+          </div>
+          
           {score > highScore && (
             <p className="text-yellow-400 text-2xl font-bold animate-bounce">🎉 NEW HIGH SCORE! 🎉</p>
           )}
@@ -473,18 +603,28 @@ const DobbyTokenEater = () => {
           <div className="text-cyan-400 font-bold text-xl">
             Size: {size.toFixed(0)}
           </div>
+          <div className="text-purple-400 font-bold text-lg">
+            ⏱️ {Math.floor(timeAlive / 60)}:{(timeAlive % 60).toString().padStart(2, '0')}
+          </div>
           {comboMultiplier > 1 && (
             <div className="text-yellow-400 font-bold text-xl animate-pulse">
               {comboMultiplier.toFixed(1)}x COMBO
             </div>
           )}
         </div>
-        {isInvincible && (
-          <div className="flex items-center gap-2 text-green-400 font-bold text-xl animate-pulse">
-            <Zap size={24} />
-            INVINCIBLE
-          </div>
-        )}
+        <div className="flex items-center gap-4">
+          {isInvincible && (
+            <div className="flex items-center gap-2 text-green-400 font-bold text-xl animate-pulse">
+              <Zap size={24} />
+              INVINCIBLE
+            </div>
+          )}
+          {highScore > 0 && (
+            <div className="text-yellow-400 font-bold text-lg">
+              🏆 Best: {highScore}
+            </div>
+          )}
+        </div>
       </div>
 
       <canvas
