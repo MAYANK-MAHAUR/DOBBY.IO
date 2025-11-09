@@ -26,10 +26,10 @@ const DobbyTokenEater = () => {
   const CANVAS_HEIGHT = 600;
   const BASE_SPEED = 3;
 
-  // Load Dobby image
+ 
   useEffect(() => {
     const img = new Image();
-    img.src = 'https://i.postimg.cc/qqrhgmg2/image.png';
+    img.src = `${process.env.PUBLIC_URL}/dobby.png`;
     img.onload = () => {
       dobbyImage.current = img;
     };
@@ -40,14 +40,13 @@ const DobbyTokenEater = () => {
 
   const dobbyQuips = [
     "NGMI? Not me!",
-    "Stacking sats like a boss",
     "Decentralize everything!",
     "To the moon! 🚀",
     "HODL mode activated",
     "Bullish on freedom",
     "GM to my bags",
     "Few understand this",
-    "Wen lambo? Soon.",
+    "Wen lambo? Soon",
     "Diamond hands only"
   ];
 
@@ -145,7 +144,7 @@ const DobbyTokenEater = () => {
   const gameLoop = useCallback(() => {
     if (gameState !== 'playing') return;
 
-    // Update player position based on mouse
+    
     setPlayer(prev => {
       const dx = mousePos.current.x - prev.x;
       const dy = mousePos.current.y - prev.y;
@@ -159,7 +158,7 @@ const DobbyTokenEater = () => {
         let newX = prev.x + vx;
         let newY = prev.y + vy;
 
-        // Wrap around edges
+       
         if (newX < -size) newX = CANVAS_WIDTH + size;
         if (newX > CANVAS_WIDTH + size) newX = -size;
         if (newY < -size) newY = CANVAS_HEIGHT + size;
@@ -170,7 +169,7 @@ const DobbyTokenEater = () => {
       return prev;
     });
 
-    // Check token collection
+   
     setTokens(prev => {
       const updated = prev.map(token => {
         if (!token.collected) {
@@ -217,7 +216,7 @@ const DobbyTokenEater = () => {
       let newVx = enemy.vx;
       let newVy = enemy.vy;
 
-      // AI: Chase player if bigger, flee if smaller
+     
       if (!isInvincible) {
         const dx = player.x - enemy.x;
         const dy = player.y - enemy.y;
@@ -486,7 +485,7 @@ const DobbyTokenEater = () => {
           <div className="mb-8">
             <div className="text-8xl mb-4 animate-bounce">
               <img 
-                src="https://i.postimg.cc/qqrhgmg2/image.png" 
+                src={`${process.env.PUBLIC_URL}/dobby.png`}
                 alt="Dobby" 
                 className="w-32 h-32 mx-auto"
               />
